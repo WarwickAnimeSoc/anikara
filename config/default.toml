@@ -1,3 +1,7 @@
+[karaokemugen]
 moe_server = "http://100.111.141.94:1337"
+moe_api = "https://kara.moe/api"
+
+[vocaluxe]
 us_server = ""
 song_dir = ""

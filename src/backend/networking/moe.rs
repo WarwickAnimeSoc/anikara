@@ -1,72 +1,87 @@
+use crate::{Context, KaraConfig};
+use dotenv;
 use futures_util::{FutureExt, future::BoxFuture};
 use rust_socketio::{
     Payload,
     asynchronous::{Client, ClientBuilder},
 };
 use serde::{Deserialize, Serialize};
-use serde_json::json;
-use std::{str::FromStr, time::Duration};
+use serde_json::{Value, json};
+use std::env;
+use std::{str::FromStr, sync::OnceLock, time::Duration};
 
 #[derive(Debug, Serialize)]
-struct Auth {
+struct LoginInfo {
     username: String,
     password: String,
 }
 
+#[derive(Debug, Serialize)]
+struct GuestLogin {
+    username: String,
+}
+
 #[allow(non_snake_case)]
 #[derive(Debug, Serialize)]
-struct AuthForm {
-    body: Auth,
+struct LoginForm {
+    body: GuestLogin,
     authorization: String,
     onlineAuthorization: String,
 }
 
-pub async fn main(config: crate::KaraConfig) {
-    let callback = |payload: Payload, socket: Client| {
-        async move {
-            match payload {
-                Payload::Text(values) => println!("Received: {:#?}", values),
-                Payload::Binary(bin_data) => println!("Received bytes: {:#?}", bin_data),
-                Payload::String(str) => println!("Received: {}", str),
-            }
-            socket
-                .emit("test", json!({"got ack": true}))
-                .await
-                .expect("Server unreachable!")
-        }
-        .boxed()
-    };
-
-    let ack_callback = |message: Payload, _: Client| {
-        async move {
-            println!("Yehaa! My ack got acked?");
-            println!("Ack data: {:#?}", message);
-        }
-        .boxed()
-    };
-
-    auth(config, callback, ack_callback).await;
+#[allow(non_snake_case)]
+#[derive(Debug, Serialize, Deserialize)]
+struct LoginResponseBody {
+    role: String,
+    token: String,
+    username: String,
 }
 
-async fn auth<F, G>(config: crate::KaraConfig, callback: F, ack_callback: G)
-where
-    F: for<'a> FnMut(Payload, Client) -> BoxFuture<'static, ()> + Send + Sync + 'static,
-    G: FnMut(Payload, rust_socketio::asynchronous::Client) -> BoxFuture<'static, ()>
-        + Send
-        + Sync
-        + 'static,
-{
-    let url = config.moe_server;
-    let auth = Auth {
-        username: String::from_str("hello").unwrap(),
-        password: String::from_str("superpassword").unwrap(),
+#[allow(non_snake_case)]
+#[derive(Debug, Serialize, Deserialize)]
+struct LoginResponse {
+    data: LoginResponseBody,
+    err: bool,
+}
+
+pub async fn auth(config: &KaraConfig, ctx: OnceLock<Context>) {
+    let ack_callback = |message: Payload, _: Client| {
+        match message {
+            Payload::Text(mut values) => {
+                if let Some(first_value) = values.pop() {
+                    match serde_json::from_value::<LoginResponse>(first_value) {
+                        Ok(msg) => println!("Parsed Struct: {:?}", msg),
+                        Err(e) => println!("Error: {:?}", e),
+                    }
+                }
+            }
+            Payload::Binary(bytes) => {
+                println!("Received binary payload: {:?}", bytes);
+            }
+
+            #[allow(deprecated)]
+            Payload::String(str_data) => {
+                if let Ok(msg) = serde_json::from_str::<LoginResponse>(&str_data) {
+                    println!("Parsed legacy string: {:?}", msg);
+                }
+            }
+        }
+        async move {
+            println!("Yehaa! My ack got acked?");
+        }
+        .boxed()
     };
 
-    // let auth_form = AuthForm {
-    //     body: auth,
-    //     authorization: String::new(),
-    //     onlineAuthorization: String::new(),
-    // };
+    let url = &config.karaokemugen.moe_server;
+    let auth = GuestLogin {
+        username: String::from_str("martinmimi").unwrap(),
+    };
+
+    let auth_form = LoginForm {
+        body: auth,
+        authorization: String::new(),
+        onlineAuthorization: String::new(),
+    };
 
     println!("Authing at: {}", url);
     let socket = ClientBuilder::new(url)
@@ -78,9 +93,7 @@ where
         .await
         .expect("Connection Failed");
 
-    let payload = json!({"body": {
-        "username": "martinmimi",
-    }});
+    let payload = json!(auth_form);
 
     socket
         .emit_with_ack("loginGuest", payload, Duration::from_secs(2), ack_callback)
@@ -91,4 +104,31 @@ where
 
     socket.disconnect().await.expect("Disconnect failed");
     println!("Server Disconnected")
+}
+
+pub async fn server_auth(config: &KaraConfig, client: reqwest::Client) {
+    let url = &config.karaokemugen.moe_api;
+    dotenv::dotenv().ok();
+    let username = env::var("USERNAME")
+        .map_err(|_| "USERNAME is not set")
+        .unwrap();
+    let password = env::var("PASSWORD")
+        .map_err(|_| "PASSWORD is not set")
+        .unwrap();
+    let request_body = LoginInfo { username, password };
+
+    let res = client
+        .post(url.to_owned() + "/auth/login")
+        .json(&request_body)
+        .send()
+        .await;
+
+    match res {
+        Ok(msg) => {
+            println!("Received response: {:?}", msg)
+        }
+        Err(e) => {
+            println!("Error: {:?}", e)
+        }
+    }
 }
