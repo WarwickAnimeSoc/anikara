@@ -47,6 +47,7 @@ struct LoginResponse {
 #[derive(Debug, Serialize, Deserialize)]
 struct SongInfo {
     kid: String,
+    songname: String,
     year: u16,
     duration: u16,
     titles: TitleInfo,
