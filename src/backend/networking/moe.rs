@@ -147,33 +147,6 @@ pub async fn auth(config: &KaraConfig, ctx: OnceLock<Context>) {
     println!("Server Disconnected")
 }
 
-pub async fn server_auth(config: &KaraConfig, client: &reqwest::Client, ctx: &OnceLock<Context>) {
-    let url = &config.karaokemugen.moe_api;
-    dotenv::dotenv().ok();
-    let username = env::var("USERNAME")
-        .map_err(|_| "USERNAME is not set")
-        .unwrap();
-    let password = env::var("PASSWORD")
-        .map_err(|_| "PASSWORD is not set")
-        .unwrap();
-    let request_body = LoginInfo { username, password };
-
-    let res = client
-        .post(url.to_owned() + "/auth/login")
-        .json(&request_body)
-        .send()
-        .await;
-
-    match res {
-        Ok(msg) => {
-            println!("Received response: {:?}", msg)
-        }
-        Err(e) => {
-            println!("Error: {:?}", e)
-        }
-    }
-}
-
 pub async fn server_search(
     filter: &str,
     config: &KaraConfig,
@@ -191,6 +164,6 @@ pub async fn server_search(
         .await?;
 
     let data: SongResponse = res.json().await?;
-    println!("Received: {:?}", data);
+    println!("Received: {:#?}", data);
     Ok(())
 }

@@ -27,7 +27,6 @@ pub struct KaraConfig {
 #[derive(Debug, Deserialize)]
 pub struct Context {
     auth_token: String,
-    server_auth: String,
 }
 
 fn load_config() -> Result<KaraConfig, config::ConfigError> {
@@ -46,6 +45,5 @@ async fn main() {
 
     println!("{:?}", config);
     // backend::networking::moe::auth(&config, ctx).await;
-    backend::networking::moe::server_auth(&config, &client, &ctx).await;
     backend::networking::moe::server_search("Cosmic Princess Kaguya", &config, &client, &ctx).await;
 }
