@@ -44,6 +44,46 @@ struct LoginResponse {
     err: bool,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+struct SongInfo {
+    kid: String,
+    year: u16,
+    duration: u16,
+    titles: TitleInfo,
+    singers: Vec<SingerInfo>,
+    series: Vec<SeriesInfo>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct TitleInfo {
+    eng: Option<String>,
+    jpn: Option<String>,
+    chn: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct SingerInfo {
+    name: String,
+}
+
+#[allow(non_snake_case)]
+#[derive(Debug, Serialize, Deserialize)]
+struct SeriesInfo {
+    external_database_ids: ExternalInfo,
+    name: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct ExternalInfo {
+    anilist: u32,
+    myanimelist: u32,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct SongResponse {
+    content: Vec<SongInfo>,
+}
+
 pub async fn auth(config: &KaraConfig, ctx: OnceLock<Context>) {
     let ack_callback = |message: Payload, _: Client| {
         match message {
@@ -106,7 +146,7 @@ pub async fn auth(config: &KaraConfig, ctx: OnceLock<Context>) {
     println!("Server Disconnected")
 }
 
-pub async fn server_auth(config: &KaraConfig, client: reqwest::Client) {
+pub async fn server_auth(config: &KaraConfig, client: &reqwest::Client, ctx: &OnceLock<Context>) {
     let url = &config.karaokemugen.moe_api;
     dotenv::dotenv().ok();
     let username = env::var("USERNAME")
@@ -131,4 +171,25 @@ pub async fn server_auth(config: &KaraConfig, client: reqwest::Client) {
             println!("Error: {:?}", e)
         }
     }
+}
+
+pub async fn server_search(
+    filter: &str,
+    config: &KaraConfig,
+    client: &reqwest::Client,
+    ctx: &OnceLock<Context>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let url = &config.karaokemugen.moe_api;
+    let query_params = [("filter", filter), ("order", "played")];
+    let size_params = [("size", 3)];
+    let res = client
+        .get(url.to_owned() + "/karas/search")
+        .query(&query_params)
+        .query(&size_params)
+        .send()
+        .await?;
+
+    let data: SongResponse = res.json().await?;
+    println!("Received: {:?}", data);
+    Ok(())
 }
