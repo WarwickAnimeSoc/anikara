@@ -2,7 +2,6 @@ use crate::{
     Context, KaraConfig,
     backend::networking::moe::EmitForErrors::{UnexpectedOutput, Unreachable},
 };
-use dotenv;
 use futures_util::FutureExt;
 use rust_socketio::{
     Payload,
@@ -149,6 +148,8 @@ async fn _inner_emit_for_json(
 
     let result = rx.await.map_err(|e| EmitForErrors::Timeout(e))?;
 
+    println!("{:#?}", result);
+
     match result {
         Payload::Text(values) => {
             if values.len() > 1 {
@@ -159,6 +160,7 @@ async fn _inner_emit_for_json(
                 .next()
                 .ok_or_else(|| EmitForErrors::UnexpectedOutput())
         }
+        // TODO: make the above prettier
         Payload::Binary(_) => Err(UnexpectedOutput()), // There is no parser for this anyways.
         Payload::String(string) => {
             Ok(serde_json::to_value(string).map_err(|_| EmitForErrors::UnexpectedOutput())?)
@@ -203,13 +205,14 @@ pub async fn auth(config: &KaraConfig) -> Result<String, EmitForErrors> {
     };
 
     let payload = json!(auth_form);
-    let login_response: LoginResponse = socket.emit_for("loginGuest", payload).await?;
+    let login_response: Vec<LoginResponse> = socket.emit_for("loginGuest", payload).await?;
     println!("Login response: {:?}", login_response);
 
     socket.disconnect().await.expect("Disconnect failed");
     println!("Server Disconnected");
 
-    Ok(login_response.data.token)
+    // TODO: make this prettier
+    Ok(login_response.into_iter().next().unwrap().data.token)
 }
 
 pub async fn server_search(

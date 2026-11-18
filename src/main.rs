@@ -44,6 +44,7 @@ async fn main() {
     let config = load_config().unwrap();
 
     println!("{:?}", config);
-    // backend::networking::moe::auth(&config, ctx).await;
+    let auth_res = backend::networking::moe::auth(&config).await;
+    println!("{:#?}", auth_res);
     backend::networking::moe::server_search("Cosmic Princess Kaguya", &config, &client, &ctx).await;
 }
