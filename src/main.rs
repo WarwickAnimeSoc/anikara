@@ -26,7 +26,15 @@ pub struct KaraConfig {
 
 #[derive(Debug, Deserialize)]
 pub struct Context {
-    auth_token: String,
+    pub auth_token: String,
+}
+
+impl Context {
+    fn new() -> Context {
+        Context {
+            auth_token: String::new(),
+        }
+    }
 }
 
 fn load_config() -> Result<KaraConfig, config::ConfigError> {
@@ -40,11 +48,23 @@ fn load_config() -> Result<KaraConfig, config::ConfigError> {
 #[tokio::main]
 async fn main() {
     let client = reqwest::Client::new();
-    let ctx: OnceLock<Context> = OnceLock::new();
+    let mut ctx: Context = Context::new();
     let config = load_config().unwrap();
 
     println!("{:?}", config);
     let auth_res = backend::networking::moe::auth(&config).await;
     println!("{:#?}", auth_res);
-    backend::networking::moe::server_search("Cosmic Princess Kaguya", &config, &client, &ctx).await;
+    match auth_res {
+        Ok(token) => {
+            ctx.auth_token = token;
+        }
+        Err(e) => eprintln!("Error: {:?}", e),
+    }
+    let search_res =
+        backend::networking::moe::server_search("Cosmic Princess Kaguya", &config, &client)
+            .await
+            .unwrap()
+            .content;
+
+    println!("{:#?}", search_res)
 }

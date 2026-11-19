@@ -48,33 +48,33 @@ struct LoginResponse {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct SongInfo {
-    kid: String,
-    songname: String,
-    year: u16,
-    duration: u16,
-    titles: TitleInfo,
-    singers: Vec<SingerInfo>,
-    series: Vec<SeriesInfo>,
+pub struct SongInfo {
+    pub kid: String,
+    pub songname: String,
+    pub year: u16,
+    pub duration: u16,
+    pub titles: TitleInfo,
+    pub singers: Vec<SingerInfo>,
+    pub series: Vec<SeriesInfo>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct TitleInfo {
-    eng: Option<String>,
-    jpn: Option<String>,
-    chn: Option<String>,
+pub struct TitleInfo {
+    pub eng: Option<String>,
+    pub jpn: Option<String>,
+    pub chn: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct SingerInfo {
-    name: String,
+pub struct SingerInfo {
+    pub name: String,
 }
 
 #[allow(non_snake_case)]
 #[derive(Debug, Serialize, Deserialize)]
-struct SeriesInfo {
-    external_database_ids: ExternalInfo,
-    name: String,
+pub struct SeriesInfo {
+    pub external_database_ids: ExternalInfo,
+    pub name: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -84,8 +84,8 @@ struct ExternalInfo {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct SongResponse {
-    content: Vec<SongInfo>,
+pub struct SongResponse {
+    pub content: Vec<SongInfo>,
 }
 
 trait EmitFor {
@@ -219,8 +219,7 @@ pub async fn server_search(
     filter: &str,
     config: &KaraConfig,
     client: &reqwest::Client,
-    ctx: &OnceLock<Context>,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<SongResponse, Box<dyn std::error::Error>> {
     let url = &config.karaokemugen.moe_api;
     let query_params = [("filter", filter), ("order", "played")];
     let size_params = [("size", 3)];
@@ -233,5 +232,6 @@ pub async fn server_search(
 
     let data: SongResponse = res.json().await?;
     println!("Received: {:#?}", data);
-    Ok(())
+
+    Ok(data)
 }
