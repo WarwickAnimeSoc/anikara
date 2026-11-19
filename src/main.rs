@@ -1,7 +1,5 @@
 pub mod backend;
 
-use std::sync::OnceLock;
-
 use config::{Config, File};
 use serde::Deserialize;
 use tokio;
