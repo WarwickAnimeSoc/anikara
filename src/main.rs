@@ -24,12 +24,14 @@ pub struct KaraConfig {
 
 #[derive(Debug, Deserialize)]
 pub struct Context {
+    pub username: String,
     pub auth_token: String,
 }
 
 impl Context {
     fn new() -> Context {
         Context {
+            username: String::new(),
             auth_token: String::new(),
         }
     }
@@ -53,8 +55,9 @@ async fn main() {
     let auth_res = backend::networking::moe::auth(&config).await;
     println!("{:#?}", auth_res);
     match auth_res {
-        Ok(token) => {
-            ctx.auth_token = token;
+        Ok(res) => {
+            ctx.auth_token = res[0].to_owned();
+            ctx.username = res[1].to_owned();
         }
         Err(e) => eprintln!("Error: {:?}", e),
     }
@@ -64,5 +67,14 @@ async fn main() {
             .unwrap()
             .content;
 
-    println!("{:#?}", search_res)
+    println!("{:#?}", search_res);
+
+    backend::networking::moe::client_play(
+        &config,
+        &ctx,
+        "554d7847-ac84-41ab-9c21-b02ce0fcb798".to_string(),
+        "1".to_string(),
+        -1,
+    )
+    .await;
 }

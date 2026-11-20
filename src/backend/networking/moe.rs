@@ -1,5 +1,5 @@
 use crate::{
-    Context, KaraConfig,
+    Context, KaraConfig, MoeConfig,
     backend::networking::moe::EmitForErrors::{UnexpectedOutput, Unreachable},
 };
 use futures_util::FutureExt;
@@ -9,15 +9,9 @@ use rust_socketio::{
 };
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use serde_json::{Value, json};
-use std::{env, fmt::Display};
-use std::{str::FromStr, sync::OnceLock, time::Duration};
+use std::fmt::Display;
+use std::time::Duration;
 use tokio::sync::oneshot;
-
-#[derive(Debug, Serialize)]
-struct LoginInfo {
-    username: String,
-    password: String,
-}
 
 #[derive(Debug, Serialize)]
 struct GuestLogin {
@@ -86,6 +80,22 @@ struct ExternalInfo {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct SongResponse {
     pub content: Vec<SongInfo>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct ClientPlay {
+    plaid: String,
+    requester: String,
+    kids: Vec<String>,
+    pos: i16,
+}
+
+#[allow(non_snake_case)]
+#[derive(Debug, Serialize, Deserialize)]
+pub struct PlayForm {
+    body: ClientPlay,
+    authorization: String,
+    onlineAuthorization: String,
 }
 
 trait EmitFor {
@@ -183,7 +193,7 @@ impl EmitFor for Client {
     }
 }
 
-pub async fn auth(config: &KaraConfig) -> Result<String, EmitForErrors> {
+pub async fn auth(config: &KaraConfig) -> Result<[String; 2], EmitForErrors> {
     let url = &config.karaokemugen.moe_server;
     let socket = ClientBuilder::new(url)
         .namespace("/")
@@ -212,7 +222,8 @@ pub async fn auth(config: &KaraConfig) -> Result<String, EmitForErrors> {
     println!("Server Disconnected");
 
     // TODO: make this prettier
-    Ok(login_response.into_iter().next().unwrap().data.token)
+    let data = login_response.into_iter().next().unwrap().data;
+    Ok([data.token, data.username])
 }
 
 pub async fn server_search(
@@ -234,4 +245,43 @@ pub async fn server_search(
     println!("Received: {:#?}", data);
 
     Ok(data)
+}
+
+pub async fn client_play(
+    config: &KaraConfig,
+    ctx: &Context,
+    kid: String,
+    plaid: String,
+    pos: i16,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let body = ClientPlay {
+        plaid,
+        requester: ctx.username.to_owned(),
+        kids: vec![kid],
+        pos,
+    };
+    let token = &ctx.auth_token;
+    println!("{:?}", token);
+    let url = &config.karaokemugen.moe_server;
+
+    let payload = json!(PlayForm {
+        body: body,
+        authorization: token.to_owned(),
+        onlineAuthorization: String::new(),
+    });
+
+    let socket = ClientBuilder::new(url)
+        .namespace("/")
+        .on("error", |err, _| {
+            async move { eprintln!("Error: {:#?}", err) }.boxed()
+        })
+        .connect()
+        .await
+        .expect("Connection Failed");
+
+    let play_response: Vec<Value> = socket.emit_for("addKaraToPlaylist", payload).await?;
+
+    println!("{:#?}", play_response);
+
+    Ok(())
 }
